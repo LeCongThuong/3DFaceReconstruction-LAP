@@ -6,6 +6,9 @@ import torch.nn as nn
 from demo import networks
 from demo.utils import *
 from lap.renderer.renderer_mr import Renderer
+import pandas as pd
+from tqdm import tqdm
+from pathlib import Path
 
 
 EPS = 1e-7
@@ -248,8 +251,8 @@ class Demo():
             self.canon_albedo_lap = nn.functional.interpolate(self.canon_albedo_lap, (self.output_size, self.output_size), mode='bilinear', align_corners=False)
             self.canon_im_lap = nn.functional.interpolate(self.canon_im_lap, (self.output_size, self.output_size), mode='bilinear', align_corners=False)
 
-            if self.render_video:
-                self.render_animation()
+            # if self.render_video:
+            #     self.render_animation()
 
     def render_animation(self):
         print(f"Rendering video animations")
@@ -303,34 +306,37 @@ class Demo():
         texture_animation = self.renderer_mr.render_yaw(self.canon_im_lap /2+0.5, self.canon_depth_lap, v_after=view_after, rotations=yaw_rotations)  # BxTxCxHxW
         self.texture_animation_lap = rearrange_frames(texture_animation)
 
-    def save_results(self, save_dir):
-        print(f"Saving results to {save_dir}")
-        save_image(save_dir, self.input_im_lap[0]/2+0.5, 'input_image')
-        save_image(save_dir, self.depth_inv_rescaler(self.canon_depth_lap)[0].repeat(3,1,1), 'canonical_depth_lap')
-        save_image(save_dir, self.canon_normal_lap[0].permute(2,0,1)/2+0.5, 'canonical_normal_lap')
-        save_image(save_dir, self.depth_inv_rescaler(self.recon_depth)[0].repeat(3,1,1), 'recon_depth_lap')
-        save_image(save_dir, self.recon_normal[0].permute(2,0,1)/2+0.5, 'recon_normal_lap')
-        save_image(save_dir, self.canon_diffuse_shading_lap[0].repeat(3,1,1), 'canonical_diffuse_shading_lap')
-        save_image(save_dir, self.canon_albedo_lap[0]/2+0.5, 'canonical_albedo_lap')
-        save_image(save_dir, self.canon_im_lap[0].clamp(-1,1)/2+0.5, 'canonical_image_lap')
+    def save_results(self, save_path):
+        # print(f"Saving results to {save_dir}")
+        # save_image(save_dir, self.input_im_lap[0]/2+0.5, 'input_image')
+        # save_image(save_dir, self.depth_inv_rescaler(self.canon_depth_lap)[0].repeat(3,1,1), 'canonical_depth_lap')
+        # save_image(save_dir, self.canon_normal_lap[0].permute(2,0,1)/2+0.5, 'canonical_normal_lap')
+        # save_image(save_dir, self.depth_inv_rescaler(self.recon_depth)[0].repeat(3,1,1), 'recon_depth_lap')
+        # save_image(save_dir, self.recon_normal[0].permute(2,0,1), 'recon_normal_lap')
+        np.save(save_path, self.recon_normal[0].permute(2,0,1).cpu().numpy())
+        # save_image(save_dir, self.canon_diffuse_shading_lap[0].repeat(3,1,1), 'canonical_diffuse_shading_lap')
+        # save_image(save_dir, self.canon_albedo_lap[0]/2+0.5, 'canonical_albedo_lap')
+        # save_image(save_dir, self.canon_im_lap[0].clamp(-1,1)/2+0.5, 'canonical_image_lap')
         
-        with open(os.path.join(save_dir, 'result_lap.mtl'), "w") as f:
-            f.write(self.mtls_lap[0].replace('$TXTFILE', './canonical_image_lap.png'))
-        with open(os.path.join(save_dir, 'result_lap.obj'), "w") as f:
-            f.write(self.objs_lap[0].replace('$MTLFILE', './result_lap.mtl'))
+        # with open(os.path.join(save_dir, 'result_lap.mtl'), "w") as f:
+            # f.write(self.mtls_lap[0].replace('$TXTFILE', './canonical_image_lap.png'))
+        # with open(os.path.join(save_dir, 'result_lap.obj'), "w") as f:
+            # f.write(self.objs_lap[0].replace('$MTLFILE', './result_lap.mtl'))
 
-        if self.render_video:
-            save_video(save_dir, self.shape_animation_lap[0], 'shape_animation_lap')
-            save_video(save_dir, self.normal_animation_lap[0], 'normal_animation_lap')
-            save_video(save_dir, self.texture_animation_lap[0], 'texture_animation_lap')
+        # if self.render_video:
+        #     save_video(save_dir, self.shape_animation_lap[0], 'shape_animation_lap')
+        #     save_video(save_dir, self.normal_animation_lap[0], 'normal_animation_lap')
+        #     save_video(save_dir, self.texture_animation_lap[0], 'texture_animation_lap')
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Demo configurations.')
     parser.add_argument('--input', default='./images', type=str, help='Path to the directory containing input images')
-    parser.add_argument('--result', default='./results5', type=str, help='Path to the directory for saving results')
+    parser.add_argument('--result', default='./results', type=str, help='Path to the directory for saving results')
+    parser.add_argument("--csv_file", help="CSV file containing image paths")
+    parser.add_argument('--data_dir', default='./data', type=str, help='Path to the directory containing input images')
     parser.add_argument('--checkpoint_lap', default='./demo/checkpoint300.pth', type=str, help='Path to the checkpoint file')
-    parser.add_argument('--output_size', default=128, type=int, help='Output image size')
+    parser.add_argument('--output_size', default=256, type=int, help='Output image size')
     parser.add_argument('--gpu', default=True, action='store_true', help='Enable GPU')
     parser.add_argument('--detect_human_face', default=False, action='store_true', help='Enable automatic human face detection. This does not detect cat faces.')
     parser.add_argument('--render_video', default=False, action='store_true', help='Render 3D animations to video')
@@ -339,15 +345,17 @@ if __name__ == "__main__":
     input_dir = args.input
     result_dir = args.result
     model = Demo(args)
-    im_list = [os.path.join(input_dir, f) for f in sorted(os.listdir(input_dir)) if is_image_file(f)]
+    data_info = pd.read_csv(args.csv_file, header=None)
+    num_img = len(data_info)
 
-    for im_path in im_list:
+    for image_idx in tqdm(range(num_img)):
+        im_path = os.path.join(args.data_dir, data_info.iloc[image_idx, 0])
         print(f"Processing {im_path}")
         pil_im = Image.open(im_path).convert('RGB')
         result_code = model.run(pil_im)
         if result_code == -1:
             print(f"Failed! Skipping {im_path}")
             continue
-
-        save_dir = os.path.join(result_dir, os.path.splitext(os.path.basename(im_path))[0])
-        model.save_results(save_dir)
+        dest_path = os.path.join(args.result, data_info.iloc[image_idx, 0]).replace("crop.jpg", "predict.npy")
+        Path(dest_path).parent.mkdir(parents=True, exist_ok=True)
+        model.save_results(dest_path)
