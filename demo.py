@@ -313,7 +313,7 @@ class Demo():
         # save_image(save_dir, self.canon_normal_lap[0].permute(2,0,1)/2+0.5, 'canonical_normal_lap')
         # save_image(save_dir, self.depth_inv_rescaler(self.recon_depth)[0].repeat(3,1,1), 'recon_depth_lap')
         # save_image(save_dir, self.recon_normal[0].permute(2,0,1), 'recon_normal_lap')
-        np.save(save_path, self.recon_normal[0].permute(2,0,1).cpu().numpy())
+        np.save(save_path, self.recon_normal[0].cpu().numpy())
         # save_image(save_dir, self.canon_diffuse_shading_lap[0].repeat(3,1,1), 'canonical_diffuse_shading_lap')
         # save_image(save_dir, self.canon_albedo_lap[0]/2+0.5, 'canonical_albedo_lap')
         # save_image(save_dir, self.canon_im_lap[0].clamp(-1,1)/2+0.5, 'canonical_image_lap')
